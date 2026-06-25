@@ -2,3 +2,4 @@
 
 # Service-account keys / secrets — never commit these
 config/*.json
+__pycache__
