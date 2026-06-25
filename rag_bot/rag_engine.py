@@ -28,7 +28,13 @@ from langchain_chroma import Chroma
 from langchain_google_vertexai import ChatVertexAI, VertexAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_classic.chains.history_aware_retriever import (
     create_history_aware_retriever,
 )
@@ -319,6 +325,108 @@ class RagEngine:
             chat_history=None,
             language=language,
         )
+
+    # Persona shared with the retrieval chain, reused for the tool-calling path.
+    _TOOL_SYSTEM_PROMPT = (
+        "You are the official AI assistant for this business, speaking directly "
+        "with its customers on its behalf. Speak in the first person as the "
+        'business ("we", "us", "our") and never reveal you are a third-party '
+        "tool.\n\n"
+        "Answer questions using the business context below; if it doesn't "
+        "contain the answer, say so honestly. Always write in {language}.\n\n"
+        "You can also book meetings. When a visitor wants to meet or talk to a "
+        "person:\n"
+        "1. Collect their full name and email address (and phone if they offer "
+        "it). You need at least a name and email to book.\n"
+        "2. Call check_availability to get real open times, then SUGGEST a few "
+        "specific options to the visitor. Never invent times.\n"
+        "3. When they choose one, call book_meeting with their details and the "
+        "exact start_time string from check_availability.\n"
+        "4. Confirm the booking in plain language and share the Google Meet "
+        "link the tool returns. Never claim a meeting is booked unless "
+        "book_meeting succeeded.\n\n"
+        "Context: {context}"
+    )
+
+    def chat_with_tools(
+        self,
+        question: str,
+        *,
+        user_id: str,
+        agent_id: str,
+        tools: list,
+        chat_history=None,
+        language: str | None = None,
+        max_iterations: int = 5,
+    ) -> str:
+        """Answer like :meth:`chat`, but the model can call ``tools``.
+
+        Runs a bounded tool-calling loop: the model may call a tool (e.g. check
+        availability, book a meeting), we run it, feed the result back, and let
+        the model continue until it produces a final text answer. ``tools`` are
+        LangChain tools supplied by the caller, so this engine stays decoupled
+        from the booking/app layer.
+        """
+        context = self.retrieve_context(
+            question, user_id=user_id, agent_id=agent_id
+        )
+        system = self._TOOL_SYSTEM_PROMPT.format(
+            language=language or "the same language the user is using",
+            context=context,
+        )
+        messages: list[BaseMessage] = [SystemMessage(content=system)]
+        messages.extend(self._to_messages(chat_history))
+        messages.append(HumanMessage(content=question))
+
+        llm_with_tools = self.llm.bind_tools(tools)
+        tools_by_name = {t.name: t for t in tools}
+
+        for _ in range(max_iterations):
+            response = llm_with_tools.invoke(messages)
+            messages.append(response)
+            tool_calls = getattr(response, "tool_calls", None)
+            if not tool_calls:
+                return self._extract_text(response.content)
+
+            for call in tool_calls:
+                tool = tools_by_name.get(call["name"])
+                if tool is None:
+                    output = f"Unknown tool: {call['name']}"
+                else:
+                    try:
+                        output = tool.invoke(call["args"])
+                    except Exception as exc:  # surface to the model, don't crash
+                        output = f"Tool error: {exc}"
+                messages.append(
+                    ToolMessage(content=str(output), tool_call_id=call["id"])
+                )
+
+        # Ran out of iterations — make one final call without tools for a reply.
+        final = self.llm.invoke(messages)
+        return self._extract_text(final.content)
+
+    @staticmethod
+    def _extract_text(content) -> str:
+        """Flatten a LangChain message's content into plain text.
+
+        Gemini 2.5 (a thinking model) returns content as a list of blocks like
+        ``[{"type": "text", "text": "...", "thought_signature": "..."}]`` rather
+        than a string. Concatenate the visible text blocks and drop reasoning/
+        thought blocks so the user never sees the raw structure.
+        """
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for block in content:
+                if isinstance(block, str):
+                    parts.append(block)
+                elif isinstance(block, dict):
+                    # Keep plain text blocks; skip 'thinking'/reasoning ones.
+                    if block.get("type") in (None, "text") and block.get("text"):
+                        parts.append(block["text"])
+            return "".join(parts).strip()
+        return str(content)
 
     def retrieve_context(
         self, query: str, *, user_id: str, agent_id: str

@@ -42,5 +42,25 @@ class Settings(BaseSettings):
     # a default voice for the language.
     voice_name: str = ""
 
+    # --- Google Calendar booking ------------------------------------------
+    # ensight's single OAuth client (Web application). Businesses connect their
+    # own Google account through it; the secret stays server-side.
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+    # Must exactly match an authorized redirect URI on the OAuth client.
+    google_oauth_redirect_uri: str = (
+        "http://localhost:8000/integrations/google/callback"
+    )
+    # Where to send the owner's browser after connecting/failing (dashboard).
+    frontend_url: str = "http://localhost:3000"
+
+    # Default meeting settings (per-agent overrides can come later).
+    booking_meeting_minutes: int = 30
+    # Working-hours window slots are suggested within (owner's calendar tz).
+    booking_workday_start_hour: int = 9
+    booking_workday_end_hour: int = 17
+    # How many days ahead to look for availability.
+    booking_lookahead_days: int = 5
+
 
 settings = Settings()

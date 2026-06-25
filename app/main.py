@@ -7,11 +7,13 @@ from fastapi.staticfiles import StaticFiles
 from app.agents.router import router as agents_router
 from app.analytics.router import router as analytics_router
 from app.auth.router import router as auth_router
+from app.booking.router import router as booking_router
 from app.chat.router import router as chat_router
 from app.chat.ws import ws_router
 from app.content.router import router as content_router
 from app.conversations.router import router as conversations_router
 from app.exports.router import router as exports_router
+from app.integrations.router import router as integrations_router
 from app.leads.router import router as leads_router
 from app.sessions.router import router as sessions_router
 
@@ -36,6 +38,8 @@ app.include_router(conversations_router)
 app.include_router(exports_router)
 app.include_router(leads_router)
 app.include_router(content_router)
+app.include_router(integrations_router)
+app.include_router(booking_router)
 app.include_router(ws_router)
 
 # Serve the realtime test client at /demo (separate top-level webclient/ module).

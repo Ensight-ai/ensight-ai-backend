@@ -56,6 +56,8 @@ class AgentService:
             "capability": payload.capability.value,
             "background_color": payload.background_color,
             "position": payload.position.value,
+            "booking_enabled": payload.booking_enabled,
+            "meeting_duration_minutes": payload.meeting_duration_minutes,
             "public_key": generate_public_key(),
         }
         created = self.repository.create(record)
@@ -95,6 +97,10 @@ class AgentService:
         if payload.capability is not None:
             self._ensure_capability_allowed(user_id, payload.capability)
             updates["capability"] = payload.capability.value
+        if payload.booking_enabled is not None:
+            updates["booking_enabled"] = payload.booking_enabled
+        if payload.meeting_duration_minutes is not None:
+            updates["meeting_duration_minutes"] = payload.meeting_duration_minutes
 
         if not updates:
             return Agent(**existing)
