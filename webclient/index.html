@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ensight AI — Realtime Test Client</title>
+    <style>
+      :root { font-family: system-ui, sans-serif; }
+      body { max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #1f2937; }
+      h1 { font-size: 1.4rem; }
+      section { border: 1px solid #e5e7eb; border-radius: 10px; padding: 1rem; margin: 1rem 0; }
+      h2 { font-size: 1.05rem; margin-top: 0; }
+      input, button { font: inherit; padding: 0.5rem 0.6rem; border-radius: 8px; border: 1px solid #d1d5db; }
+      button { background: #2563eb; color: #fff; border: none; cursor: pointer; }
+      button.secondary { background: #6b7280; }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+      .row > input { flex: 1; min-width: 180px; }
+      .log { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.6rem; height: 180px; overflow: auto; white-space: pre-wrap; font-size: 0.9rem; }
+      .pill { font-size: 0.75rem; padding: 0.1rem 0.5rem; border-radius: 999px; background: #e5e7eb; }
+      .ok { background: #dcfce7; }
+      .err { color: #b91c1c; }
+      small { color: #6b7280; }
+    </style>
+  </head>
+  <body>
+    <h1>Ensight AI — Realtime Test Client</h1>
+
+    <section>
+      <h2>1. Session</h2>
+      <p><small>Paste an agent's <code>public_key</code> (from <code>POST /agents</code>) to start a session.</small></p>
+      <div class="row">
+        <input id="publicKey" placeholder="pk_..." />
+        <input id="visitorId" placeholder="visitor id (optional)" />
+        <button id="createSession">Create session</button>
+      </div>
+      <p>Status: <span id="sessionStatus" class="pill">no session</span></p>
+    </section>
+
+    <section>
+      <h2>2. Chat (<code>/ws/chat</code>)</h2>
+      <div class="row">
+        <button id="connectChat" disabled>Connect</button>
+        <span id="chatState" class="pill">disconnected</span>
+      </div>
+      <div class="row" style="margin-top:0.6rem">
+        <input id="chatInput" placeholder="Ask something..." disabled />
+        <button id="sendChat" disabled>Send</button>
+      </div>
+      <div id="chatLog" class="log" style="margin-top:0.6rem"></div>
+    </section>
+
+    <section>
+      <h2>3. Voice (<code>/ws/voice</code>)</h2>
+      <div class="row">
+        <button id="connectVoice" disabled>Connect</button>
+        <span id="voiceState" class="pill">disconnected</span>
+        <button id="recordBtn" class="secondary" disabled>● Hold to record</button>
+      </div>
+      <div id="voiceLog" class="log" style="margin-top:0.6rem"></div>
+      <small>Records on mouse-down, sends on release. Spoken replies play automatically.</small>
+    </section>
+
+    <script src="app.js"></script>
+  </body>
+</html>

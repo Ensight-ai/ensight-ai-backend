@@ -59,7 +59,7 @@ class RagEngine:
         persist_directory: str = "./chroma_db",
         collection_name: str = "my_collection",
         embedding_model: str = "text-embedding-004",
-        llm_model: str = "gemini-2.0-flash",
+        llm_model: str | None = None,
         project: str | None = None,
         location: str | None = None,
         chunk_size: int = 1000,
@@ -69,6 +69,10 @@ class RagEngine:
         # Fall back to the standard Google Cloud environment variables.
         project = project or os.getenv("GOOGLE_CLOUD_PROJECT")
         location = location or os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+        # Which Gemini model to use. Override with LLM_MODEL; the model must be
+        # available in your project + region (newer projects may only have the
+        # latest, e.g. gemini-2.5-flash).
+        llm_model = llm_model or os.getenv("LLM_MODEL", "gemini-2.5-flash")
 
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
@@ -174,16 +178,23 @@ class RagEngine:
             [
                 (
                     "system",
-                    "You are Ensight AI, an AI assistant that helps businesses "
-                    "turn their knowledge, conversations, and content into "
-                    "actionable insights. You support teams across customer "
-                    "support, sales, content, and analytics with clear, "
-                    "practical, business-focused guidance.\n\n"
-                    "Use the following context to answer the user's question. "
-                    "Ground your answer in the context; if the context does not "
-                    "contain the answer, say so honestly rather than guessing. "
-                    "Be concise, professional, and helpful, and answer without "
-                    "markdown formatting.\n\n"
+                    "You are the official AI assistant for this business, "
+                    "speaking directly with its customers on its behalf. You "
+                    "represent the business and own the conversation.\n\n"
+                    "Always speak in the first person as the business: use "
+                    '"we", "us", and "our" (e.g. "We\'re located at...", '
+                    '"You can reach us at..."). NEVER refer to the business in '
+                    'the third person (never "they", "them", or talk about the '
+                    "company as an outsider), and never reveal that you are a "
+                    "third-party tool or AI platform — to the customer, you are "
+                    "the business.\n\n"
+                    "Use the following context — the business's own "
+                    "information — to answer the customer's question. Ground "
+                    "your answer in the context; if it doesn't contain the "
+                    "answer, say so honestly and point the customer to how they "
+                    "can reach us. Be warm, helpful, and concise, and answer "
+                    "without markdown formatting.\n\n"
+                    "Always write your entire answer in {language}.\n\n"
                     "Context: {context}",
                 ),
                 MessagesPlaceholder("chat_history"),
@@ -241,24 +252,86 @@ class RagEngine:
         return messages
 
     def chat(
-        self, question: str, *, user_id: str, agent_id: str, chat_history=None
+        self,
+        question: str,
+        *,
+        user_id: str,
+        agent_id: str,
+        chat_history=None,
+        language: str | None = None,
     ) -> str:
         """Answer ``question`` using only this user + agent's documents.
 
         Retrieval is filtered to chunks tagged with ``user_id`` and
-        ``agent_id``, so conversations never leak across owners.
+        ``agent_id``, so conversations never leak across owners. ``language``
+        is the language to answer in (e.g. "Spanish"); when omitted, the agent
+        mirrors the language the user wrote in.
         """
         chain = self._chain_for(user_id, agent_id)
         result = chain.invoke(
-            {"input": question, "chat_history": self._to_messages(chat_history)}
+            {
+                "input": question,
+                "chat_history": self._to_messages(chat_history),
+                "language": language or "the same language the user is using",
+            }
         )
         return result["answer"]
 
-    def query(self, question: str, *, user_id: str, agent_id: str) -> str:
+    async def astream_chat(
+        self,
+        question: str,
+        *,
+        user_id: str,
+        agent_id: str,
+        chat_history=None,
+        language: str | None = None,
+    ):
+        """Stream the answer as it is generated, yielding text deltas.
+
+        Same scoping as :meth:`chat`; used by the realtime WebSocket routes.
+        """
+        chain = self._chain_for(user_id, agent_id)
+        async for chunk in chain.astream(
+            {
+                "input": question,
+                "chat_history": self._to_messages(chat_history),
+                "language": language or "the same language the user is using",
+            }
+        ):
+            # The retrieval chain emits dicts; answer text arrives under "answer".
+            token = chunk.get("answer") if isinstance(chunk, dict) else None
+            if token:
+                yield token
+
+    def query(
+        self,
+        question: str,
+        *,
+        user_id: str,
+        agent_id: str,
+        language: str | None = None,
+    ) -> str:
         """One-shot question with no conversation history."""
         return self.chat(
-            question, user_id=user_id, agent_id=agent_id, chat_history=None
+            question,
+            user_id=user_id,
+            agent_id=agent_id,
+            chat_history=None,
+            language=language,
         )
+
+    def retrieve_context(
+        self, query: str, *, user_id: str, agent_id: str
+    ) -> str:
+        """Return the business's relevant document text for ``query``.
+
+        Scoped to one user + agent (same metadata filter as chat retrieval).
+        Used to *ground* content generation so drafts stay grounded in the
+        business's own documents rather than the model's general knowledge.
+        Returns an empty string if the agent has no matching documents.
+        """
+        docs = self._filtered_retriever(user_id, agent_id).invoke(query)
+        return "\n\n".join(doc.page_content for doc in docs)
 
 
 # A lazily-created shared instance so routes reuse one engine (the Vertex AI

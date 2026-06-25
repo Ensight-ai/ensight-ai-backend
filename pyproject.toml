@@ -5,7 +5,20 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "docx2txt>=0.9",
     "fastapi[standard]>=0.137.1",
-    "pydantic>=2.13.4",
+    "google-cloud-speech>=2.40.0",
+    "google-cloud-texttospeech>=2.36.0",
+    "langchain-chroma>=1.1.0",
+    "langchain-classic>=1.0.8",
+    "langchain-community>=0.4.2",
+    "langchain-google-vertexai>=3.2.4",
+    "langchain-text-splitters>=1.1.2",
+    "langdetect>=1.0.9",
+    "psycopg2-binary>=2.9.12",
+    "pydantic[email]>=2.13.4",
+    "pyjwt>=2.13.0",
+    "pypdf>=6.13.3",
     "python-dotenv>=1.2.2",
+    "supabase>=2.31.0",
 ]
