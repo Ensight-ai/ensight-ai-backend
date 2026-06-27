@@ -10,7 +10,12 @@ from app.agents.repository import AgentRepository
 from app.agents.schemas import Agent, AgentCreate, AgentUpdate, Capability, IngestResponse
 from app.auth.service import AuthService
 from app.core.pagination import Page, PageParams
-from app.core.plans import is_capability_allowed
+from app.core.plans import (
+    Feature,
+    agent_limit,
+    is_capability_allowed,
+    is_feature_allowed,
+)
 from app.core.security import generate_public_key
 
 
@@ -47,8 +52,49 @@ class AgentService:
                 ),
             )
 
+    def _ensure_feature_allowed(self, user_id: str, feature: Feature) -> None:
+        plan = self.auth_service.get_plan(user_id)
+        if not is_feature_allowed(plan, feature):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Your '{plan.value}' plan does not include "
+                    f"'{feature.value}'. Upgrade to unlock it."
+                ),
+            )
+
     def create_agent(self, user_id: str, payload: AgentCreate) -> Agent:
-        self._ensure_capability_allowed(user_id, payload.capability)
+        plan = self.auth_service.get_plan(user_id)
+
+        if not is_capability_allowed(plan, payload.capability):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Your '{plan.value}' plan does not allow "
+                    f"'{payload.capability.value}' agents."
+                ),
+            )
+
+        limit = agent_limit(plan)
+        if self.repository.count_by_user(user_id) >= limit:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Your '{plan.value}' plan allows up to {limit} "
+                    f"agent{'s' if limit != 1 else ''}. Upgrade to add more."
+                ),
+            )
+
+        if payload.booking_enabled and not is_feature_allowed(
+            plan, Feature.booking
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Meeting booking isn't included in your '{plan.value}' "
+                    "plan. Upgrade to enable it."
+                ),
+            )
 
         record = {
             "user_id": user_id,
@@ -98,6 +144,8 @@ class AgentService:
             self._ensure_capability_allowed(user_id, payload.capability)
             updates["capability"] = payload.capability.value
         if payload.booking_enabled is not None:
+            if payload.booking_enabled:
+                self._ensure_feature_allowed(user_id, Feature.booking)
             updates["booking_enabled"] = payload.booking_enabled
         if payload.meeting_duration_minutes is not None:
             updates["meeting_duration_minutes"] = payload.meeting_duration_minutes

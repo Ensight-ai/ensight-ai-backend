@@ -62,5 +62,21 @@ class Settings(BaseSettings):
     # How many days ahead to look for availability.
     booking_lookahead_days: int = 5
 
+    # --- Paystack billing -------------------------------------------------
+    # Secret key (sk_test_... / sk_live_...). Stays server-side.
+    paystack_secret_key: str = ""
+    paystack_base_url: str = "https://api.paystack.co"
+    # Subscription plan codes (created in the Paystack dashboard). Defaults are
+    # the test-mode plans; override per environment via env vars.
+    paystack_plan_starter: str = "PLN_jd8vdz79mg39a4r"
+    paystack_plan_beta: str = "PLN_6cq4diiuojdy715"
+    paystack_plan_pro: str = "PLN_hgysxnd84bzx5bc"
+    # Plan prices in the smallest currency unit (kobo for NGN). Must match the
+    # amounts configured on the Paystack plans: ₦8,000 / ₦22,000 / ₦34,500.
+    paystack_currency: str = "NGN"
+    paystack_amount_starter: int = 800000
+    paystack_amount_beta: int = 2200000
+    paystack_amount_pro: int = 3450000
+
 
 settings = Settings()

@@ -3,7 +3,8 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 
-from app.dependencies import get_current_user
+from app.core.plan_guard import require_feature
+from app.core.plans import Feature
 from app.exports.dependencies import get_export_service
 from app.exports.service import ExportService
 
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/agents", tags=["exports"])
 def export_agent(
     agent_id: str,
     format: str = Query("json", pattern="^(json|csv)$"),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_feature(Feature.exports)),
     controller: ExportController = Depends(),
 ):
     return controller.export(agent_id, current_user.id, format)

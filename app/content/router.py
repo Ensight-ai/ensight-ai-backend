@@ -11,6 +11,8 @@ from app.content.schemas import (
 )
 from app.content.service import ContentService
 from app.core.pagination import Page, PageParams
+from app.core.plan_guard import require_feature
+from app.core.plans import Feature
 from app.dependencies import get_current_user
 
 
@@ -50,7 +52,7 @@ router = APIRouter(prefix="/content", tags=["content"])
 )
 def generate_content(
     payload: ContentGenerateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_feature(Feature.content)),
     controller: ContentController = Depends(),
 ):
     return controller.generate(current_user.id, payload)

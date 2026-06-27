@@ -26,3 +26,23 @@ class AuthRepository:
             .execute()
         )
         return result.data[0] if result.data else None
+
+    def set_plan(self, user_id: str, plan: str) -> dict | None:
+        """Update the existing ``plan`` column — no schema change needed."""
+        result = (
+            self.db.table(self._TABLE)
+            .update({"plan": plan})
+            .eq("id", user_id)
+            .execute()
+        )
+        return result.data[0] if result.data else None
+
+    def set_plan_by_email(self, email: str, plan: str) -> dict | None:
+        """Used by the payment webhook, which identifies the user by email."""
+        result = (
+            self.db.table(self._TABLE)
+            .update({"plan": plan})
+            .eq("email", email)
+            .execute()
+        )
+        return result.data[0] if result.data else None

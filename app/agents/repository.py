@@ -13,6 +13,15 @@ class AgentRepository:
         result = self.db.table(self._TABLE).insert(record).execute()
         return result.data[0] if result.data else None
 
+    def count_by_user(self, user_id: str) -> int:
+        result = (
+            self.db.table(self._TABLE)
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return result.count or 0
+
     def get_owned(self, agent_id: str, user_id: str) -> dict | None:
         result = (
             self.db.table(self._TABLE)
