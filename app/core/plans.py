@@ -22,10 +22,19 @@ from app.agents.schemas import Capability
 from app.auth.schemas import Plan
 
 PLAN_CAPABILITIES: dict[Plan, set[Capability]] = {
+    Plan.inactive: set(),
     Plan.starter: {Capability.chat},
     Plan.beta: {Capability.chat, Capability.voice},
     Plan.pro: {Capability.chat, Capability.voice, Capability.both},
 }
+
+# The plans that grant access. Anything else (e.g. ``inactive``) means the user
+# hasn't subscribed and must pay before using the product.
+PAID_PLANS: set[Plan] = {Plan.starter, Plan.beta, Plan.pro}
+
+
+def is_active_plan(plan: Plan) -> bool:
+    return plan in PAID_PLANS
 
 
 def is_capability_allowed(plan: Plan, capability: Capability) -> bool:
@@ -35,6 +44,7 @@ def is_capability_allowed(plan: Plan, capability: Capability) -> bool:
 # --- agent count limits ----------------------------------------------------
 
 PLAN_AGENT_LIMITS: dict[Plan, int] = {
+    Plan.inactive: 0,
     Plan.starter: 1,
     Plan.beta: 3,
     Plan.pro: 10,
@@ -42,7 +52,7 @@ PLAN_AGENT_LIMITS: dict[Plan, int] = {
 
 
 def agent_limit(plan: Plan) -> int:
-    return PLAN_AGENT_LIMITS.get(plan, 1)
+    return PLAN_AGENT_LIMITS.get(plan, 0)
 
 
 # --- gated features --------------------------------------------------------
@@ -58,6 +68,7 @@ class Feature(str, Enum):
 
 
 PLAN_FEATURES: dict[Plan, set[Feature]] = {
+    Plan.inactive: set(),
     Plan.starter: set(),
     Plan.beta: {Feature.booking, Feature.content, Feature.exports},
     Plan.pro: {

@@ -35,17 +35,19 @@ class AuthService:
             return UserProfile(
                 id=user_id,
                 email=row.get("email", fallback_email),
-                plan=row.get("plan", Plan.starter),
+                plan=row.get("plan", Plan.inactive),
             )
-        # No profile row yet — treat as a starter user.
-        return UserProfile(id=user_id, email=fallback_email, plan=Plan.starter)
+        # No profile row yet — treat as inactive (must subscribe first).
+        return UserProfile(id=user_id, email=fallback_email, plan=Plan.inactive)
 
     def get_plan(self, user_id: str) -> Plan:
         return self.get_profile(user_id).plan
 
-    def _create_starter_profile(self, user_id: str, email: str) -> None:
+    def _create_inactive_profile(self, user_id: str, email: str) -> None:
+        # New accounts start with no active plan; they must subscribe to use
+        # the product (hard paywall). Payment flips this via the billing flow.
         self.repository.create(
-            user_id=user_id, email=email, plan=Plan.starter.value
+            user_id=user_id, email=email, plan=Plan.inactive.value
         )
 
     # --- auth -------------------------------------------------------------
@@ -75,9 +77,9 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Sign up failed"
             )
 
-        self._create_starter_profile(result.user.id, payload.email)
+        self._create_inactive_profile(result.user.id, payload.email)
         profile = UserProfile(
-            id=result.user.id, email=payload.email, plan=Plan.starter
+            id=result.user.id, email=payload.email, plan=Plan.inactive
         )
 
         # Immediately sign in so the client gets tokens without a separate step.

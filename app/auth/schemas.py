@@ -6,8 +6,13 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class Plan(str, Enum):
-    """The subscription plans a user can be on."""
+    """The subscription plans a user can be on.
 
+    ``inactive`` is the default for a brand-new account that hasn't subscribed
+    yet — it unlocks nothing, so the user must pick and pay for a plan first.
+    """
+
+    inactive = "inactive"
     starter = "starter"
     beta = "beta"
     pro = "pro"
