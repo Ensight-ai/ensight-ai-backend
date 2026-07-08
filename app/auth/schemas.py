@@ -29,6 +29,27 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class TokenRequest(BaseModel):
+    """A verification/reset token from an emailed link."""
+
+    token: str
+
+
+class EmailRequest(BaseModel):
+    """Just an email — for resend-verification and forgot-password."""
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str = Field(min_length=8, max_length=72)
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
 class UserProfile(BaseModel):
     id: str
     email: EmailStr

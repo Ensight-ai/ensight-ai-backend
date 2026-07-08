@@ -2,11 +2,12 @@
 -- Run this in the Supabase SQL editor (Dashboard > SQL Editor > New query).
 -- Supabase already provides the auth.users table; we link to it below.
 
--- The plans a user can be on.
+-- The plans a user can be on. 'inactive' = signed up but not yet subscribed
+-- (hard paywall); starter/beta/pro are the paid tiers.
 do $$
 begin
     if not exists (select 1 from pg_type where typname = 'plan') then
-        create type plan as enum ('starter', 'beta', 'pro');
+        create type plan as enum ('inactive', 'starter', 'beta', 'pro');
     end if;
 end$$;
 

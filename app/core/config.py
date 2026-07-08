@@ -78,5 +78,16 @@ class Settings(BaseSettings):
     paystack_amount_beta: int = 2200000
     paystack_amount_pro: int = 3450000
 
+    # --- Email (ZeptoMail) ------------------------------------------------
+    # "Send Mail Token" from your ZeptoMail Mail Agent. Stays server-side.
+    zepto_token: str = ""
+    # Global data center = api.zeptomail.com; India = api.zeptomail.in
+    zepto_api_url: str = "https://api.zeptomail.com/v1.1/email"
+    # A sender on a domain you've verified in ZeptoMail (SPF/DKIM set).
+    mail_from_email: str = "noreply@ensightlabs.xyz"
+    mail_from_name: str = "EnsightLabs"
+    # How long verification / password-reset links stay valid.
+    email_token_ttl_minutes: int = 1440  # 24 hours
+
 
 settings = Settings()

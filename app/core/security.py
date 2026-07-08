@@ -68,3 +68,33 @@ def decode_session_token(token: str) -> dict:
     if payload.get("type") != _SESSION_TYPE:
         raise ValueError("Not an agent session token")
     return payload
+
+
+# --- Email verification / password-reset tokens ----------------------------
+# Short-lived, signed links emailed to the user. ``purpose`` prevents a verify
+# token from being reused to reset a password (and vice-versa).
+
+
+def create_email_token(*, purpose: str, user_id: str, email: str) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "type": "email",
+        "purpose": purpose,  # "verify" | "reset"
+        "sub": user_id,
+        "email": email,
+        "iat": now,
+        "exp": now + timedelta(minutes=settings.email_token_ttl_minutes),
+    }
+    return jwt.encode(payload, settings.session_secret, algorithm=_ALGORITHM)
+
+
+def decode_email_token(token: str, *, purpose: str) -> dict:
+    """Decode an email token and check it was issued for ``purpose``.
+
+    Raises :class:`jwt.PyJWTError` (expired/invalid signature) or
+    :class:`ValueError` (wrong type/purpose).
+    """
+    payload = jwt.decode(token, settings.session_secret, algorithms=[_ALGORITHM])
+    if payload.get("type") != "email" or payload.get("purpose") != purpose:
+        raise ValueError("Wrong token type or purpose")
+    return payload

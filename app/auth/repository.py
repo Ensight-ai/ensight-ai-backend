@@ -27,6 +27,16 @@ class AuthRepository:
         )
         return result.data[0] if result.data else None
 
+    def get_by_email(self, email: str) -> dict | None:
+        result = (
+            self.db.table(self._TABLE)
+            .select("*")
+            .eq("email", email)
+            .limit(1)
+            .execute()
+        )
+        return result.data[0] if result.data else None
+
     def set_plan(self, user_id: str, plan: str) -> dict | None:
         """Update the existing ``plan`` column — no schema change needed."""
         result = (

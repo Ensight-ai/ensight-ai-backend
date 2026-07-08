@@ -112,6 +112,17 @@ class AgentService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create agent",
             )
+
+        # Notify the owner by email — best-effort, never blocks agent creation.
+        try:
+            from app.core import mailer
+
+            email = self.auth_service.get_profile(user_id).email
+            if email:
+                mailer.send_agent_created_email(email, payload.name)
+        except Exception:
+            pass
+
         return Agent(**created)
 
     def list_agents(self, user_id: str, params: PageParams) -> Page[Agent]:
