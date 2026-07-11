@@ -35,9 +35,6 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
-from langchain_classic.chains.history_aware_retriever import (
-    create_history_aware_retriever,
-)
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_classic.chains.retrieval import create_retrieval_chain
 
@@ -102,17 +99,20 @@ class RagEngine:
         self.retrieval_k = retrieval_k
         # Gemini chat model on Vertex AI (e.g. "gemini-2.0-flash",
         # "gemini-1.5-pro").
+        # thinking_budget=0 turns OFF Gemini 2.5's internal "thinking" tokens.
+        # For grounded RAG answers that reasoning adds latency with little gain,
+        # so disabling it makes replies noticeably faster (and avoids the
+        # thinking-block output format entirely).
         self.llm = ChatVertexAI(
             model=llm_model,
             project=project,
             location=location,
             temperature=0,
+            thinking_budget=0,
         )
-        # The prompts and the answer-generation chain don't depend on the
-        # per-request filter, so build them once. The retriever (and therefore
-        # the full chain) is assembled per query so it can be scoped to a
-        # specific user + agent.
-        self._contextualize_q_prompt = self._make_contextualize_prompt()
+        # The answer-generation chain doesn't depend on the per-request filter,
+        # so build it once. The retriever (and therefore the full chain) is
+        # assembled per query so it can be scoped to a specific user + agent.
         self._question_answer_chain = create_stuff_documents_chain(
             llm=self.llm,
             prompt=self._make_qa_prompt(),
@@ -162,23 +162,6 @@ class RagEngine:
     # Querying
     # ------------------------------------------------------------------
     @staticmethod
-    def _make_contextualize_prompt() -> ChatPromptTemplate:
-        return ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    "Given a chat history and the latest user question which "
-                    "might reference context in the chat history, formulate a "
-                    "standalone question which can be understood without the "
-                    "chat history. Do NOT answer the question, just reformulate "
-                    "it if needed and otherwise return it as is.",
-                ),
-                MessagesPlaceholder("chat_history"),
-                ("human", "{input}"),
-            ]
-        )
-
-    @staticmethod
     def _make_qa_prompt() -> ChatPromptTemplate:
         return ChatPromptTemplate.from_messages(
             [
@@ -226,14 +209,17 @@ class RagEngine:
         )
 
     def _chain_for(self, user_id: str, agent_id: str):
-        """Assemble the full RAG chain scoped to one user + agent."""
-        history_aware_retriever = create_history_aware_retriever(
-            llm=self.llm,
-            retriever=self._filtered_retriever(user_id, agent_id),
-            prompt=self._contextualize_q_prompt,
-        )
+        """Assemble the full RAG chain scoped to one user + agent.
+
+        We retrieve directly on the raw question rather than first asking the
+        LLM to rewrite it into a standalone query. That "history-aware" rewrite
+        cost a whole extra LLM round trip on every follow-up message; the answer
+        step still receives the full chat history, so multi-turn answers stay
+        coherent while responses come back roughly twice as fast on follow-ups.
+        """
         return create_retrieval_chain(
-            history_aware_retriever, self._question_answer_chain
+            self._filtered_retriever(user_id, agent_id),
+            self._question_answer_chain,
         )
 
     @staticmethod

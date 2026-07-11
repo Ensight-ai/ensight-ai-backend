@@ -23,6 +23,36 @@ class MessageRepository:
             }
         ).execute()
 
+    def add_turn(
+        self,
+        *,
+        conversation_id: str,
+        agent_id: str,
+        question: str,
+        answer: str,
+    ) -> None:
+        """Insert the visitor question + agent answer in a single request.
+
+        One round trip instead of two. The DB assigns ``created_at``; a tiny
+        insert order hint keeps the pair correctly ordered oldest-first.
+        """
+        self.db.table(self._TABLE).insert(
+            [
+                {
+                    "conversation_id": conversation_id,
+                    "agent_id": agent_id,
+                    "role": "user",
+                    "content": question,
+                },
+                {
+                    "conversation_id": conversation_id,
+                    "agent_id": agent_id,
+                    "role": "assistant",
+                    "content": answer,
+                },
+            ]
+        ).execute()
+
     def history(self, conversation_id: str) -> list[dict]:
         """Prior turns as ``[{"role","content"}, ...]`` oldest first."""
         result = (

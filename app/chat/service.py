@@ -160,16 +160,11 @@ class ChatService:
     def _record_turn(
         self, session: AgentSession, question: str, answer: str
     ) -> None:
-        self.messages.add(
+        # Both messages in a single insert — one DB round trip instead of two.
+        self.messages.add_turn(
             conversation_id=session.conversation_id,
             agent_id=session.agent_id,
-            role="user",
-            content=question,
-        )
-        self.messages.add(
-            conversation_id=session.conversation_id,
-            agent_id=session.agent_id,
-            role="assistant",
-            content=answer,
+            question=question,
+            answer=answer,
         )
         self.conversations.touch(session.conversation_id)
