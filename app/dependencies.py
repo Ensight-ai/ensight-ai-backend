@@ -47,6 +47,19 @@ def get_current_user(
     return response.user
 
 
+def require_admin(current_user=Depends(get_current_user)):
+    """Gate a route to the emails listed in ADMIN_EMAILS (founder dashboard)."""
+    from app.core.config import settings
+
+    admins = set(settings.admin_emails)  # already normalised to lowercase
+    email = (getattr(current_user, "email", "") or "").lower()
+    if not admins or email not in admins:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admins only"
+        )
+    return current_user
+
+
 def get_agent_session(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> AgentSession:

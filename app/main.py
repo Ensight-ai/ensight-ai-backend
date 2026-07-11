@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.admin.router import router as admin_router
 from app.agents.router import router as agents_router
 from app.analytics.router import router as analytics_router
 from app.auth.router import router as auth_router
@@ -33,6 +34,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(billing_router)
+app.include_router(admin_router)
 app.include_router(agents_router)
 app.include_router(sessions_router)
 app.include_router(chat_router)

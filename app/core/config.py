@@ -1,7 +1,9 @@
 """Application settings, loaded from environment / .env."""
 
-from pydantic import AliasChoices, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Annotated
+
+from pydantic import AliasChoices, Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -88,6 +90,20 @@ class Settings(BaseSettings):
     mail_from_name: str = "EnsightLabs"
     # How long verification / password-reset links stay valid.
     email_token_ttl_minutes: int = 1440  # 24 hours
+
+    # --- Admin ------------------------------------------------------------
+    # Emails allowed to view the founder metrics dashboard. In .env, provide a
+    # comma-separated list, e.g. ADMIN_EMAILS=you@x.com,teammate@y.com
+    admin_emails: Annotated[list[str], NoDecode] = []
+
+    @field_validator("admin_emails", mode="before")
+    @classmethod
+    def _parse_admin_emails(cls, v):
+        if isinstance(v, str):
+            return [e.strip().lower() for e in v.split(",") if e.strip()]
+        if isinstance(v, list):
+            return [str(e).strip().lower() for e in v if str(e).strip()]
+        return v
 
 
 settings = Settings()

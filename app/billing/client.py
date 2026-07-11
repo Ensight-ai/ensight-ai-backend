@@ -62,6 +62,51 @@ class PaystackClient:
             raise PaystackError(body.get("message") or "Paystack initialize failed")
         return body["data"]
 
+    def totals(self) -> dict:
+        """Aggregate successful-transaction totals (for the admin dashboard).
+
+        Returns Paystack's ``/transaction/totals`` data; amounts are in the
+        smallest unit (kobo). Returns ``{}`` if billing isn't configured.
+        """
+        if not self.secret:
+            return {}
+        try:
+            with httpx.Client(timeout=20) as client:
+                res = client.get(
+                    f"{self.base}/transaction/totals",
+                    headers=self._headers(),
+                )
+            body = res.json()
+        except (httpx.HTTPError, ValueError):
+            return {}
+        if res.status_code >= 400 or not body.get("status"):
+            return {}
+        return body.get("data", {})
+
+    def list_transactions(
+        self, *, page: int = 1, per_page: int = 50, status: str | None = None
+    ) -> dict:
+        """List transactions (admin payments view). Returns the full body
+        ({data: [...], meta: {...}}), or empty if not configured."""
+        if not self.secret:
+            return {"data": [], "meta": {}}
+        params: dict = {"perPage": per_page, "page": page}
+        if status:
+            params["status"] = status
+        try:
+            with httpx.Client(timeout=20) as client:
+                res = client.get(
+                    f"{self.base}/transaction",
+                    params=params,
+                    headers=self._headers(),
+                )
+            body = res.json()
+        except (httpx.HTTPError, ValueError):
+            return {"data": [], "meta": {}}
+        if res.status_code >= 400 or not body.get("status"):
+            return {"data": [], "meta": {}}
+        return body
+
     def verify(self, reference: str) -> dict:
         """Verify a transaction by reference. Returns its data."""
         self._require_key()
