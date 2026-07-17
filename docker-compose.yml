@@ -20,8 +20,9 @@ services:
       - chroma_data:/app/chroma_db # persist the vector store across deploys
     ports:
       # Published on the host so VPS Smart's Website Management proxy can reach
-      # it. Bound to localhost so it isn't exposed raw to any port mapping.
-      - "127.0.0.1:8000:8000"
+      # it at the inner IP (192.168.122.20:8000). Port 8000 has no public port
+      # mapping, so it's only reachable inside the NAT — not from the internet.
+      - "8000:8000"
 
 volumes:
   chroma_data:
