@@ -58,9 +58,8 @@ jobs:
           ENV_FILE: ${{ secrets.ENV_FILE }}
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
         run: |
-          mkdir -p stage/deploy stage/config
+          mkdir -p stage/config
           cp docker-compose.yml stage/docker-compose.yml
-          cp deploy/Caddyfile stage/deploy/Caddyfile
           printf '%s\n' "$ENV_FILE" > stage/.env
           printf '%s\n' "$GCP_SA_JSON" > stage/config/ensight-sa.json
 
@@ -71,7 +70,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || '22' }}
-          source: "stage/docker-compose.yml,stage/deploy/Caddyfile,stage/.env,stage/config/ensight-sa.json"
+          source: "stage/docker-compose.yml,stage/.env,stage/config/ensight-sa.json"
           target: /opt/ensight-backend
           strip_components: 1 # drop the leading "stage/" from paths
 
@@ -98,6 +97,6 @@ jobs:
             docker compose run --rm api python migrate.py
 
             echo "==> Restarting"
-            docker compose up -d
+            docker compose up -d --remove-orphans
             docker image prune -f
             docker compose ps

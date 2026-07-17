@@ -1,7 +1,12 @@
-# Runs the backend + Caddy (auto-HTTPS reverse proxy) on the server.
-# The image is built & pushed by GitHub Actions; the server just pulls it.
+# Runs the backend on the server. The image is built & pushed by GitHub
+# Actions; the server just pulls it.
 #
-# Set IMAGE in your .env, e.g.:
+# HTTPS/domain is handled OUTSIDE this file by VPS Smart's Website Management
+# panel (this is a NAT VPS — we can't bind public 80/443 ourselves). The API
+# publishes on host port 8000; point the panel's reverse proxy at
+# 127.0.0.1:8000 for api.ensightlabs.xyz.
+#
+# IMAGE is set by the deploy workflow, e.g.:
 #   IMAGE=ghcr.io/your-github-user/ensight-backend:latest
 
 services:
@@ -13,23 +18,10 @@ services:
     volumes:
       - ./config:/app/config:ro # holds ensight-sa.json (Google key)
       - chroma_data:/app/chroma_db # persist the vector store across deploys
-    expose:
-      - "8000" # reachable only inside the compose network (Caddy proxies it)
-
-  caddy:
-    image: caddy:2
-    restart: always
-    depends_on:
-      - api
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+      # Published on the host so VPS Smart's Website Management proxy can reach
+      # it. Bound to localhost so it isn't exposed raw to any port mapping.
+      - "127.0.0.1:8000:8000"
 
 volumes:
   chroma_data:
-  caddy_data:
-  caddy_config:
