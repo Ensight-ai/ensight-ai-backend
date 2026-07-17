@@ -1,0 +1,15 @@
+# Keep the image small and free of secrets / runtime data.
+.git
+.github
+.venv
+**/__pycache__/
+*.pyc
+.env
+.env.example
+config/*.json
+chroma_db/
+deploy/
+.gitignore
+*.md
+# NOTE: webclient/ and supabase/migrations/ are intentionally NOT ignored —
+# the app serves the demo client and migrate.py needs the migration files.

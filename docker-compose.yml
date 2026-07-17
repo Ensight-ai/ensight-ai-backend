@@ -1,0 +1,35 @@
+# Runs the backend + Caddy (auto-HTTPS reverse proxy) on the server.
+# The image is built & pushed by GitHub Actions; the server just pulls it.
+#
+# Set IMAGE in your .env, e.g.:
+#   IMAGE=ghcr.io/your-github-user/ensight-backend:latest
+
+services:
+  api:
+    image: ${IMAGE:-ghcr.io/your-github-user/ensight-backend:latest}
+    restart: always
+    # Secrets + config come from .env on the server (never baked into the image).
+    env_file: .env
+    volumes:
+      - ./config:/app/config:ro # holds ensight-sa.json (Google key)
+      - chroma_data:/app/chroma_db # persist the vector store across deploys
+    expose:
+      - "8000" # reachable only inside the compose network (Caddy proxies it)
+
+  caddy:
+    image: caddy:2
+    restart: always
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  chroma_data:
+  caddy_data:
+  caddy_config:

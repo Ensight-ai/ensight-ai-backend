@@ -1,0 +1,10 @@
+# Caddy reverse proxy — automatic HTTPS + WebSocket support (no extra config
+# needed for /ws/chat and /ws/voice).
+#
+# Runs as the `caddy` service in docker-compose.yml and proxies to the `api`
+# service over the compose network. Replace the domain, point its DNS A record
+# at the server, and Caddy fetches a Let's Encrypt cert automatically.
+
+api.ensightlabs.xyz {
+    reverse_proxy api:8000
+}

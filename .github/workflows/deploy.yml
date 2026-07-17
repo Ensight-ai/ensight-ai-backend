@@ -1,0 +1,103 @@
+name: Deploy backend to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # lets you trigger a deploy manually from the Actions tab
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # to push the image to GitHub Container Registry
+    outputs:
+      image: ${{ steps.img.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image name (GHCR requires lowercase)
+        id: img
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.img.outputs.image }}:latest
+            ${{ steps.img.outputs.image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      # Assemble everything the server needs from the repo + GitHub Secrets.
+      # The server never clones anything — we ship these files to it.
+      - name: Stage server files
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+        run: |
+          mkdir -p stage/deploy stage/config
+          cp docker-compose.yml stage/docker-compose.yml
+          cp deploy/Caddyfile stage/deploy/Caddyfile
+          printf '%s\n' "$ENV_FILE" > stage/.env
+          printf '%s\n' "$GCP_SA_JSON" > stage/config/ensight-sa.json
+
+      - name: Copy files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          source: "stage/docker-compose.yml,stage/deploy/Caddyfile,stage/.env,stage/config/ensight-sa.json"
+          target: /opt/ensight-backend
+          strip_components: 1 # drop the leading "stage/" from paths
+
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script: |
+            set -euo pipefail
+            cd /opt/ensight-backend
+
+            export IMAGE="${{ needs.build.outputs.image }}:latest"
+
+            echo "==> Logging in to GHCR"
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            echo "==> Pulling new image"
+            docker compose pull api
+
+            echo "==> Running database migrations"
+            docker compose run --rm api python migrate.py
+
+            echo "==> Restarting"
+            docker compose up -d
+            docker image prune -f
+            docker compose ps
