@@ -29,6 +29,8 @@ class AgentCreate(BaseModel):
     capability: Capability = Capability.chat
     background_color: str = Field(default="#2563eb", pattern=_HEX_COLOR)
     position: Position = Position.bottom_right
+    # Welcome message shown when the widget opens (blank = built-in default).
+    greeting: str | None = Field(default=None, max_length=300)
     # Let the agent book Google Meet meetings (requires the owner to have
     # connected a Google Calendar).
     booking_enabled: bool = False
@@ -42,6 +44,7 @@ class AgentUpdate(BaseModel):
     capability: Capability | None = None
     background_color: str | None = Field(default=None, pattern=_HEX_COLOR)
     position: Position | None = None
+    greeting: str | None = Field(default=None, max_length=300)
     booking_enabled: bool | None = None
     meeting_duration_minutes: int | None = Field(default=None, ge=5, le=240)
 
@@ -53,6 +56,7 @@ class Agent(BaseModel):
     capability: Capability
     background_color: str
     position: Position
+    greeting: str | None = None
     booking_enabled: bool = False
     meeting_duration_minutes: int = 30
     # Non-secret key the website widget uses to start a session.

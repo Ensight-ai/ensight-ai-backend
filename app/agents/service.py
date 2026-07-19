@@ -102,6 +102,7 @@ class AgentService:
             "capability": payload.capability.value,
             "background_color": payload.background_color,
             "position": payload.position.value,
+            "greeting": payload.greeting,
             "booking_enabled": payload.booking_enabled,
             "meeting_duration_minutes": payload.meeting_duration_minutes,
             "public_key": generate_public_key(),
@@ -151,6 +152,8 @@ class AgentService:
             updates["background_color"] = payload.background_color
         if payload.position is not None:
             updates["position"] = payload.position.value
+        if payload.greeting is not None:
+            updates["greeting"] = payload.greeting
         if payload.capability is not None:
             self._ensure_capability_allowed(user_id, payload.capability)
             updates["capability"] = payload.capability.value
