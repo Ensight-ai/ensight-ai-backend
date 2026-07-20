@@ -14,7 +14,7 @@ from app.auth.schemas import (
     SignUpResponse,
     UserProfile,
 )
-from app.core import mailer
+from app.core import discord, mailer
 from app.core.security import create_email_token, decode_email_token
 
 
@@ -94,6 +94,7 @@ class AuthService:
         )
 
         self._send_verification(result.user.id, payload.email)
+        discord.notify_signup(payload.email)
 
         return SignUpResponse(
             user=profile,

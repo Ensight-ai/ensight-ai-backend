@@ -70,15 +70,15 @@ class Settings(BaseSettings):
     paystack_base_url: str = "https://api.paystack.co"
     # Subscription plan codes (created in the Paystack dashboard). Defaults are
     # the test-mode plans; override per environment via env vars.
-    paystack_plan_starter: str = "PLN_jd8vdz79mg39a4r"
-    paystack_plan_beta: str = "PLN_6cq4diiuojdy715"
-    paystack_plan_pro: str = "PLN_hgysxnd84bzx5bc"
+    paystack_plan_starter: str = "PLN_oxqg3av8x9pl11r"
+    paystack_plan_beta: str = "PLN_dr5vkjen2rt965r"
+    paystack_plan_pro: str = "PLN_xd60p2tg2izqq0j"
     # Plan prices in the smallest currency unit (kobo for NGN). Must match the
-    # amounts configured on the Paystack plans: ₦8,000 / ₦22,000 / ₦34,500.
+    # amounts configured on the Paystack plans: ₦8,500 / ₦22,500 / ₦35,000.
     paystack_currency: str = "NGN"
-    paystack_amount_starter: int = 800000
-    paystack_amount_beta: int = 2200000
-    paystack_amount_pro: int = 3450000
+    paystack_amount_starter: int = 850000
+    paystack_amount_beta: int = 2250000
+    paystack_amount_pro: int = 3500000
 
     # --- Email (ZeptoMail) ------------------------------------------------
     # "Send Mail Token" from your ZeptoMail Mail Agent. Stays server-side.
@@ -90,6 +90,10 @@ class Settings(BaseSettings):
     mail_from_name: str = "EnsightLabs"
     # How long verification / password-reset links stay valid.
     email_token_ttl_minutes: int = 1440  # 24 hours
+
+    # Discord incoming-webhook URL for ops alerts (signups, payments, errors).
+    # Leave blank to disable — every alert becomes a silent no-op.
+    discord_webhook_url: str = ""
 
     # --- Admin ------------------------------------------------------------
     # Emails allowed to view the founder metrics dashboard. In .env, provide a

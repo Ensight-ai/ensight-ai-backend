@@ -8,7 +8,7 @@ Capabilities (agent types):
 Agent limits (how many agents you can create):
     starter -> 1
     beta    -> 3
-    pro     -> 10
+    pro     -> 6
 
 Features (gated extras beyond the base support agent):
     starter -> none (chat agent, lead spotting, history, basic analytics)
@@ -47,7 +47,7 @@ PLAN_AGENT_LIMITS: dict[Plan, int] = {
     Plan.inactive: 0,
     Plan.starter: 1,
     Plan.beta: 3,
-    Plan.pro: 10,
+    Plan.pro: 6,
 }
 
 

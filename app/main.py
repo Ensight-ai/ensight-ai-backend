@@ -1,8 +1,12 @@
+import logging
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+from app.core import discord
 
 from app.admin.router import router as admin_router
 from app.agents.router import router as agents_router
@@ -53,6 +57,25 @@ _webclient_dir = Path(__file__).resolve().parent.parent / "webclient"
 if _webclient_dir.is_dir():
     app.mount(
         "/demo", StaticFiles(directory=_webclient_dir, html=True), name="demo"
+    )
+
+
+logger = logging.getLogger(__name__)
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception(request: Request, exc: Exception):
+    """Catch unhandled (500-class) errors, alert Discord, log the traceback.
+
+    Intentional ``HTTPException``s and validation errors have their own
+    handlers, so this only fires for genuine bugs — not expected 4xx responses.
+    """
+    logger.exception(
+        "Unhandled error on %s %s", request.method, request.url.path
+    )
+    discord.notify_error(f"{request.method} {request.url.path}", exc)
+    return JSONResponse(
+        status_code=500, content={"detail": "Internal server error"}
     )
 
 

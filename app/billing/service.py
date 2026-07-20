@@ -17,7 +17,14 @@ from app.auth.repository import AuthRepository
 from app.auth.schemas import Plan
 from app.billing.client import PaystackClient, PaystackError
 from app.billing.schemas import CheckoutResponse, VerifyResponse
+from app.core import discord
 from app.core.config import settings
+
+
+def _major_amount(data: dict) -> float | None:
+    """Paystack amounts are in the minor unit (kobo/cents) — convert to major."""
+    amount = data.get("amount")
+    return amount / 100 if isinstance(amount, (int, float)) else None
 
 # Events that mean "this plan is now active".
 _ACTIVATE_EVENTS = {"charge.success", "subscription.create"}
@@ -105,6 +112,13 @@ class BillingService:
         plan = self._resolve_plan(data)
         if plan:
             self.auth_repo.set_plan(user_id, plan.value)
+            discord.notify_payment(
+                (data.get("customer") or {}).get("email") or "",
+                plan.value,
+                amount=_major_amount(data),
+                currency=data.get("currency"),
+                source="checkout",
+            )
         return VerifyResponse(status="success", plan=plan)
 
     def handle_webhook(self, raw_body: bytes, signature: str) -> None:
@@ -132,6 +146,13 @@ class BillingService:
             plan = self._resolve_plan(data)
             if plan:
                 self.auth_repo.set_plan_by_email(email, plan.value)
+                discord.notify_payment(
+                    email,
+                    plan.value,
+                    amount=_major_amount(data),
+                    currency=data.get("currency"),
+                    source="webhook",
+                )
         elif event in _DEACTIVATE_EVENTS:
             # Subscription ended -> drop to the base tier.
             self.auth_repo.set_plan_by_email(email, Plan.starter.value)
