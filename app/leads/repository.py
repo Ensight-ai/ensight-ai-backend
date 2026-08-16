@@ -1,5 +1,7 @@
 """Data access for the ``leads`` table."""
 
+from datetime import datetime, timezone
+
 from supabase import Client
 
 from app.leads.schemas import LeadFilters
@@ -31,6 +33,17 @@ class LeadRepository:
             .eq("id", lead_id)
             .eq("user_id", user_id)
             .limit(1)
+            .execute()
+        )
+        return result.data[0] if result.data else None
+
+    def mark_alert_sent(self, lead_id: str) -> dict | None:
+        """Record delivery only when no prior alert has been recorded."""
+        result = (
+            self.db.table(self._TABLE)
+            .update({"alert_sent_at": datetime.now(timezone.utc).isoformat()})
+            .eq("id", lead_id)
+            .is_("alert_sent_at", "null")
             .execute()
         )
         return result.data[0] if result.data else None

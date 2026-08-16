@@ -6,18 +6,23 @@ light verification pass, and persistence.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import HTTPException, status
 
 from app.agents.service import AgentService
 from app.conversations.message_repository import MessageRepository
 from app.conversations.repository import ConversationRepository
 from app.core.pagination import Page, PageParams
+from app.integrations.repository import GoogleConnectionRepository
 from app.leads.repository import LeadRepository
 from app.leads.schemas import Lead, LeadExtraction, LeadFilters, LeadStatus
+from app.sessions.schemas import AgentSession
 
 # Below this model-reported confidence, the lead is flagged for human review
 # instead of being trusted outright.
 _CONFIDENCE_THRESHOLD = 0.5
+logger = logging.getLogger("ensight.leads")
 
 
 class LeadService:
@@ -27,11 +32,91 @@ class LeadService:
         conversations: ConversationRepository,
         messages: MessageRepository,
         agent_service: AgentService,
+        google_connections: GoogleConnectionRepository | None = None,
     ) -> None:
         self.leads = leads
         self.conversations = conversations
         self.messages = messages
         self.agent_service = agent_service
+        self.google_connections = google_connections
+
+    # --- automatic lifecycle ---------------------------------------------
+    def end_conversation(self, session: AgentSession) -> dict:
+        """Mark a widget conversation ended and queue it for qualification."""
+        conversation = self.conversations.mark_ended(
+            session.conversation_id, session.agent_id, session.user_id
+        )
+        if conversation is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found",
+            )
+        return conversation
+
+    def process_ended_conversation(self, session: AgentSession) -> None:
+        """Qualify one ended conversation and send any high-intent alert.
+
+        This method is intentionally exception-safe because FastAPI runs it
+        after the end-session response has already been returned.
+        """
+        claimed = self.conversations.claim_lead_processing(
+            session.conversation_id, session.agent_id
+        )
+        if not claimed:
+            return
+
+        try:
+            # A visitor can close the widget after only seeing the greeting.
+            # There is no lead to create when no persisted turn exists.
+            if not self._build_transcript(session.conversation_id):
+                self.conversations.finish_lead_processing(
+                    session.conversation_id, session.agent_id, succeeded=True
+                )
+                return
+
+            lead = self.qualify_conversation(
+                session.user_id, session.agent_id, session.conversation_id
+            )
+            self._notify_promising_lead(lead)
+            self.conversations.finish_lead_processing(
+                session.conversation_id, session.agent_id, succeeded=True
+            )
+        except Exception:
+            logger.exception(
+                "Automatic lead qualification failed for conversation %s",
+                session.conversation_id,
+            )
+            self.conversations.finish_lead_processing(
+                session.conversation_id, session.agent_id, succeeded=False
+            )
+
+    def _notify_promising_lead(self, lead: Lead) -> None:
+        if lead.status not in (LeadStatus.hot, LeadStatus.warm):
+            return
+        if lead.alert_sent_at is not None or self.google_connections is None:
+            return
+
+        connection = self.google_connections.get(lead.user_id)
+        to_email = connection.get("google_email") if connection else None
+        if not to_email:
+            return
+
+        agent = self.agent_service.ensure_owned(lead.agent_id, lead.user_id)
+        from app.core import mailer
+
+        mailer.send_lead_alert_email(
+            to_email,
+            status=lead.status.value,
+            score=lead.score,
+            agent_name=agent.get("name") or "AI agent",
+            name=lead.name,
+            email=lead.email,
+            phone=lead.phone,
+            company=lead.company,
+            intent=lead.intent,
+            summary=lead.summary,
+        )
+        self.leads.mark_alert_sent(lead.id)
 
     # --- qualification ----------------------------------------------------
     def qualify_conversation(

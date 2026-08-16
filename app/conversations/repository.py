@@ -86,3 +86,55 @@ class ConversationRepository:
         self.db.table(self._TABLE).update(
             {"last_message_at": datetime.now(timezone.utc).isoformat()}
         ).eq("id", conversation_id).execute()
+
+    def mark_ended(
+        self, conversation_id: str, agent_id: str, user_id: str
+    ) -> dict | None:
+        """End a conversation once and queue its automatic qualification."""
+        now = datetime.now(timezone.utc).isoformat()
+        result = (
+            self.db.table(self._TABLE)
+            .update(
+                {
+                    "ended_at": now,
+                    "lead_processing_status": "pending",
+                }
+            )
+            .eq("id", conversation_id)
+            .eq("agent_id", agent_id)
+            .eq("user_id", user_id)
+            .is_("ended_at", "null")
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+        return self.get_owned(conversation_id, agent_id)
+
+    def claim_lead_processing(
+        self, conversation_id: str, agent_id: str
+    ) -> bool:
+        """Atomically claim pending/failed work; concurrent callers lose."""
+        for current_status in ("pending", "failed"):
+            result = (
+                self.db.table(self._TABLE)
+                .update({"lead_processing_status": "processing"})
+                .eq("id", conversation_id)
+                .eq("agent_id", agent_id)
+                .eq("lead_processing_status", current_status)
+                .execute()
+            )
+            if result.data:
+                return True
+        return False
+
+    def finish_lead_processing(
+        self, conversation_id: str, agent_id: str, *, succeeded: bool
+    ) -> None:
+        updates = {
+            "lead_processing_status": "completed" if succeeded else "failed"
+        }
+        if succeeded:
+            updates["lead_qualified_at"] = datetime.now(timezone.utc).isoformat()
+        self.db.table(self._TABLE).update(updates).eq(
+            "id", conversation_id
+        ).eq("agent_id", agent_id).execute()

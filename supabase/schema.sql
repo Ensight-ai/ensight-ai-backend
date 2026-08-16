@@ -62,16 +62,29 @@ create table if not exists public.conversations (
     -- Detected conversation language (ISO 639-1 code, e.g. 'en', 'es').
     language        text,
     started_at      timestamptz not null default now(),
-    last_message_at timestamptz
+    last_message_at timestamptz,
+    ended_at        timestamptz,
+    lead_processing_status text not null default 'active'
+                      check (lead_processing_status in (
+                        'active', 'pending', 'processing', 'completed', 'failed'
+                      )),
+    lead_qualified_at timestamptz
 );
 
 -- If upgrading an existing conversations table:
 alter table public.conversations add column if not exists language text;
+alter table public.conversations add column if not exists ended_at timestamptz;
+alter table public.conversations
+    add column if not exists lead_processing_status text not null default 'active';
+alter table public.conversations
+    add column if not exists lead_qualified_at timestamptz;
 
 create index if not exists conversations_agent_id_idx
     on public.conversations (agent_id);
 create index if not exists conversations_visitor_id_idx
     on public.conversations (visitor_id);
+create index if not exists conversations_lead_processing_idx
+    on public.conversations (lead_processing_status, ended_at);
 
 -- Messages within a conversation.
 create table if not exists public.messages (

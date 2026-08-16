@@ -85,6 +85,7 @@ class Lead(BaseModel):
     confidence: float
     # True when the assessment is low-confidence and a human should review it.
     flagged: bool = False
+    alert_sent_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

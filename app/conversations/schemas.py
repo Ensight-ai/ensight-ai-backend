@@ -20,6 +20,9 @@ class ConversationSummary(BaseModel):
     language: str | None = None  # detected conversation language (ISO code)
     started_at: datetime
     last_message_at: datetime | None = None
+    ended_at: datetime | None = None
+    lead_processing_status: str = "active"
+    lead_qualified_at: datetime | None = None
     message_count: int
 
 

@@ -31,3 +31,8 @@ class AgentSession(BaseModel):
     capability: Capability
     visitor_id: str
     conversation_id: str
+
+
+class EndSessionResponse(BaseModel):
+    conversation_id: str
+    status: str = "processing"

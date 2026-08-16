@@ -7,6 +7,7 @@ are skipped with a warning so local/dev flows don't crash.
 
 from __future__ import annotations
 
+from html import escape
 import logging
 
 import httpx
@@ -236,5 +237,63 @@ def send_agent_created_email(to_email: str, agent_name: str) -> None:
     _send(
         to_email=to_email,
         subject=f"Your agent “{agent_name}” is ready",
+        html=html,
+    )
+
+
+def send_lead_alert_email(
+    to_email: str,
+    *,
+    status: str,
+    score: int,
+    agent_name: str,
+    name: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+    company: str | None = None,
+    intent: str | None = None,
+    summary: str | None = None,
+) -> None:
+    """Notify an owner that an ended conversation produced a strong lead."""
+    safe_status = escape(status.title())
+    safe_agent = escape(agent_name)
+    visitor = escape(name or email or "Anonymous visitor")
+
+    details = [
+        f"<strong>Lead:</strong> {visitor}",
+        f"<strong>Agent:</strong> {safe_agent}",
+        f"<strong>Qualification:</strong> {safe_status} ({score}/100)",
+    ]
+    if company:
+        details.append(f"<strong>Company:</strong> {escape(company)}")
+    if email:
+        safe_email = escape(email)
+        details.append(
+            f'<strong>Email:</strong> <a href="mailto:{safe_email}" '
+            f'style="color:{_BRAND};">{safe_email}</a>'
+        )
+    if phone:
+        details.append(f"<strong>Phone:</strong> {escape(phone)}")
+    if intent:
+        details.append(f"<strong>Intent:</strong> {escape(intent)}")
+    if summary:
+        details.append(f"<strong>Summary:</strong> {escape(summary)}")
+
+    body = (
+        f"Your <strong>{safe_agent}</strong> agent just finished a conversation "
+        f"that looks like a <strong>{safe_status.lower()} lead</strong>. "
+        "Review it soon and follow up while their interest is fresh.<br><br>"
+        + "<br>".join(details)
+    )
+    html = _layout(
+        preheader=f"{safe_status} lead detected — follow up soon.",
+        heading=f"A {safe_status.lower()} lead needs your attention",
+        body=body,
+        button_text="Review this lead",
+        button_url=f"{settings.frontend_url}/dashboard/leads",
+    )
+    _send(
+        to_email=to_email,
+        subject=f"{safe_status} lead detected by {safe_agent}",
         html=html,
     )
