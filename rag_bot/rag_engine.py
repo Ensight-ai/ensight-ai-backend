@@ -14,6 +14,7 @@ region are read from ``GOOGLE_CLOUD_PROJECT`` / ``GOOGLE_CLOUD_LOCATION``.
 """
 
 import os
+from datetime import datetime, timezone
 from typing import Iterable
 
 from dotenv import load_dotenv
@@ -183,6 +184,12 @@ class RagEngine:
                     "answer, say so honestly and point the customer to how they "
                     "can reach us. Be warm, helpful, and concise, and answer "
                     "without markdown formatting.\n\n"
+                    "No calendar or other action tools are available in this "
+                    "conversation. Never claim that you are checking a calendar, "
+                    "booking a meeting, sending an invitation, or that you will "
+                    "do one of those actions later. If asked, explain that online "
+                    "booking is not enabled and offer the business's documented "
+                    "contact method.\n\n"
                     "Always write your entire answer in {language}.\n\n"
                     "Context: {context}",
                 ),
@@ -322,13 +329,22 @@ class RagEngine:
         "contain the answer, say so honestly. Always write in {language}.\n\n"
         "You can also book meetings. When a visitor wants to meet or talk to a "
         "person:\n"
-        "1. Collect their full name and email address (and phone if they offer "
-        "it). You need at least a name and email to book.\n"
-        "2. Call check_availability to get real open times, then SUGGEST a few "
-        "specific options to the visitor. Never invent times.\n"
-        "3. When they choose one, call book_meeting with their details and the "
-        "exact start_time string from check_availability.\n"
-        "4. Confirm the booking in plain language and share the Google Meet "
+        "1. Calendar tools run immediately during this response. Never say you "
+        "are checking, will check, or will send an invite later. Call the tool "
+        "now, or clearly ask for the one piece of information still missing.\n"
+        "2. If the visitor requests a specific date/time, immediately call "
+        "check_availability with that time converted to ISO 8601. If it is in "
+        "the past or busy, say so and call check_availability without a time to "
+        "offer alternatives. Current UTC date/time: {current_datetime}.\n"
+        "3. If no exact time was requested, call check_availability without a "
+        "time and suggest a few returned options. Never invent availability.\n"
+        "4. Collect their full name and email address (and phone if offered). "
+        "You need at least a name and email to book. Do not re-ask for details "
+        "already present in the conversation history.\n"
+        "5. Once the time is available and name/email are known, call "
+        "book_meeting in this same response with the exact start_time returned "
+        "by check_availability.\n"
+        "6. Confirm the booking in plain language and share the Google Meet "
         "link the tool returns. Never claim a meeting is booked unless "
         "book_meeting succeeded.\n\n"
         "Context: {context}"
@@ -359,6 +375,7 @@ class RagEngine:
         system = self._TOOL_SYSTEM_PROMPT.format(
             language=language or "the same language the user is using",
             context=context,
+            current_datetime=datetime.now(timezone.utc).isoformat(),
         )
         messages: list[BaseMessage] = [SystemMessage(content=system)]
         messages.extend(self._to_messages(chat_history))

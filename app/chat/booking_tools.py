@@ -25,9 +25,42 @@ def build_booking_tools(
     duration_minutes: int | None,
 ) -> list:
     @tool
-    def check_availability() -> str:
-        """Get the business's next open meeting times. Always call this before
-        suggesting any times — never invent availability."""
+    def check_availability(requested_start_time: str = "") -> str:
+        """Check the owner's Google Calendar before discussing availability.
+
+        When the visitor gives an exact date/time, pass it as an ISO 8601 value
+        in requested_start_time. A value without an offset is interpreted in
+        the calendar owner's timezone. Otherwise leave it empty to get the
+        next open meeting times. Never invent availability.
+        """
+        if requested_start_time:
+            try:
+                requested = datetime.fromisoformat(
+                    requested_start_time.replace("Z", "+00:00")
+                )
+            except (TypeError, ValueError):
+                return (
+                    "requested_start_time wasn't a valid ISO 8601 time. Convert "
+                    "the visitor's requested date and time and try again."
+                )
+            try:
+                result = booking_service.check_time(
+                    user_id,
+                    requested,
+                    duration_minutes=duration_minutes,
+                )
+            except HTTPException as exc:
+                return f"Could not check that requested time: {exc.detail}"
+
+            label = result.start.strftime("%a, %b %d, %Y at %I:%M %p")
+            if result.available:
+                return (
+                    f"AVAILABLE: {label} ({result.timezone}) is open for a "
+                    f"{result.duration_minutes}-minute meeting. "
+                    f"[start_time={result.start.isoformat()}]"
+                )
+            return f"NOT AVAILABLE: {label} ({result.timezone}). {result.reason}"
+
         try:
             result = booking_service.get_availability(
                 user_id, duration_minutes=duration_minutes

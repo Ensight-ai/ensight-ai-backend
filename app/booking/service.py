@@ -11,7 +11,12 @@ from fastapi import HTTPException, status
 from app.agents.service import AgentService
 from app.booking import calendar_client
 from app.booking.repository import BookingRepository
-from app.booking.schemas import AvailabilityResponse, Booking, Slot
+from app.booking.schemas import (
+    AvailabilityResponse,
+    Booking,
+    RequestedTimeAvailability,
+    Slot,
+)
 from app.booking.slots import compute_free_slots
 from app.core.config import settings
 from app.core.pagination import Page, PageParams
@@ -66,6 +71,59 @@ class BookingService:
             timezone=tz, duration_minutes=duration, slots=slots
         )
 
+    def check_time(
+        self,
+        user_id: str,
+        start_time: datetime,
+        *,
+        duration_minutes: int | None = None,
+    ) -> RequestedTimeAvailability:
+        """Check one visitor-requested time against the owner's calendar.
+
+        A time without an offset is interpreted in the calendar owner's
+        timezone. Exact requests are not restricted to the suggestion window;
+        the calendar itself decides whether the owner is free.
+        """
+        duration = duration_minutes or settings.booking_meeting_minutes
+        tz_name = self.integrations.get_timezone(user_id)
+        owner_tz = ZoneInfo(tz_name)
+
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=owner_tz)
+        else:
+            start_time = start_time.astimezone(owner_tz)
+
+        if start_time <= datetime.now(timezone.utc):
+            return RequestedTimeAvailability(
+                start=start_time,
+                timezone=tz_name,
+                duration_minutes=duration,
+                available=False,
+                reason="That time has already passed.",
+            )
+
+        token = self.integrations.get_valid_access_token(user_id)
+        end_time = start_time + timedelta(minutes=duration)
+        try:
+            busy = calendar_client.free_busy(token, start_time, end_time)
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Couldn't check that time on the calendar.",
+            ) from exc
+
+        available = not any(
+            start_time < busy_end and busy_start < end_time
+            for busy_start, busy_end in busy
+        )
+        return RequestedTimeAvailability(
+            start=start_time,
+            timezone=tz_name,
+            duration_minutes=duration,
+            available=available,
+            reason=None if available else "The calendar is busy at that time.",
+        )
+
     # --- booking ----------------------------------------------------------
     def create_booking(
         self,
@@ -80,12 +138,19 @@ class BookingService:
         duration_minutes: int | None = None,
     ) -> Booking:
         duration = duration_minutes or settings.booking_meeting_minutes
-        token = self.integrations.get_valid_access_token(user_id)
         tz = self.integrations.get_timezone(user_id)
 
         # Interpret a naive start time as being in the owner's timezone.
         if start_time.tzinfo is None:
             start_time = start_time.replace(tzinfo=ZoneInfo(tz))
+        else:
+            start_time = start_time.astimezone(ZoneInfo(tz))
+        if start_time <= datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="That meeting time has already passed.",
+            )
+        token = self.integrations.get_valid_access_token(user_id)
         end_time = start_time + timedelta(minutes=duration)
 
         # Re-check the slot is still free right before booking (avoid races).

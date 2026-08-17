@@ -20,6 +20,16 @@ class AvailabilityResponse(BaseModel):
     slots: list[Slot]
 
 
+class RequestedTimeAvailability(BaseModel):
+    """Availability result for a visitor's exact requested start time."""
+
+    start: datetime
+    timezone: str
+    duration_minutes: int
+    available: bool
+    reason: str | None = None
+
+
 class BookingStatus(str, Enum):
     confirmed = "confirmed"
     cancelled = "cancelled"
