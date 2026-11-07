@@ -1,4 +1,7 @@
 .env
+.env.dev
+venv
+env
 
 # Service-account keys / secrets — never commit these
 config/*.json
